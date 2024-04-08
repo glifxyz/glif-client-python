@@ -1,71 +1,101 @@
-import os
-from dotenv import load_dotenv
-import requests
-import aiohttp
 import json
+import os
+from typing import Optional, Union
+from urllib.parse import urljoin
 
-load_dotenv()
+import aiohttp
+import requests
+from dotenv import load_dotenv
+
+import logging
+
+class URLPath:
+    """
+    Example usage
+    ```
+    base_url = URLPath('https://api.example.com')
+    endpoint = base_url / 'data' / 'users'
+    print(endpoint)
+    ```
+    """
+
+    def __init__(self, base_url: str) -> None:
+        self.base_url = base_url
+
+    def __truediv__(self, other: str) -> "URLPath":
+        return URLPath(urljoin(self.base_url + "/", other))
+
+    def __str__(self) -> str:
+        return self.base_url
+
 
 class GlifClient:
-    GLIF_API_TOKEN = os.getenv("GLIF_API_TOKEN")
+    simple_api_url = URLPath("https://simple-api.glif.app")
+    api_url = URLPath("https://glif.app/api")
 
     def __init__(
         self,
-        verbose : bool = False,
+        api_token: Optional[str] = None,
     ):
-        self.simple_api_url = "https://simple-api.glif.app"
-        self.api_url = "https://alpha.glif.xyz/api/graph-run"
+        if api_token:
+            self.api_token = api_token
+        else:
+            load_dotenv()
+            self.api_token = os.getenv("GLIF_API_TOKEN")
+        if not self.api_token:
+            raise ValueError("api_token is not set")
 
-        if not self.GLIF_API_TOKEN:
-            raise ValueError("GLIF_API_TOKEN is not set")
-        self.verbose = verbose
-
-    def get_headers(self) -> dict:
-        return {"Authorization": f"Bearer {self.GLIF_API_TOKEN}"}
+    @property
+    def headers(self) -> dict:
+        return {"Authorization": f"Bearer {self.api_token}"}
     
-    def run_simple(self, glif_id: str, inputs: dict) -> dict:
-        if self.verbose:
-            print(f"Running {glif_id} with inputs: {inputs}")
+
+    def run_simple(self, glif_id: str, inputs: Optional[dict] = None) -> dict:
+        if inputs is None:
+            inputs = {}
+        logging.debug(f"Running {glif_id} with inputs: {inputs}")
         response = requests.post(
             self.simple_api_url,
             json={"id": glif_id, "inputs": inputs},
-            headers=self.get_headers(),
+            headers=self.headers,
         )
         return_data = json.loads(response.content)
-        if self.verbose:
-            print(return_data)
+
+        logging.debug(f"Output from run_simple: {return_data=}")
         return return_data["output"]
 
-    async def arun_simple(self, glif_id: str, inputs: dict) -> dict:
-        if self.verbose:
-            print(f"Running {glif_id} with inputs: {inputs}")
+    async def arun_simple(self, glif_id: str, inputs: Optional[dict] = None) -> dict:
+        if inputs is None:
+            inputs = {}
+        logging.debug(f"Running {glif_id} with inputs: {inputs}")
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                url=f"{self.simple_api_url}/{glif_id}",
-                json=inputs,
-                headers=self.get_headers(),
+                url=str(self.simple_api_url),
+                json={"id": glif_id, "inputs": inputs},
+                headers=self.headers,
             ) as response:
                 return_data = await response.json()
-                if self.verbose:
-                    print(return_data)
-                return return_data["output"]
 
-    async def arun(self, glif_id: str, inputs: dict) -> dict:
+        logging.debug(f"Output from arun_simple: {return_data=}")
+        return return_data["output"]
+
+    async def arun(self, glif_id: str, inputs: Optional[dict] = None) -> dict:
+        if inputs is None:
+            inputs = {}
+        logging.debug(f"Running {glif_id} with inputs: {inputs}")
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                "https://glif.app/api",
+                url=str(self.api_url),
                 json={"id": glif_id, "inputs": inputs},
-                headers=self.get_headers(),
+                headers=self.headers,
             ) as response:
-                print(response)
                 async for data in response.content.iter_any():
                     # Decode each chunk and split by newline to get individual JSON strings
                     for line in data.decode("utf-8").split("\n"):
                         if line:  # Check if the line is not empty
                             try:
                                 json_data = json.loads(line)
-                                if self.verbose:
-                                    print(json_data)
+                                logging.debug(f"Output from arun: {json_data=}")
                                 if json_data["type"] == "result":
                                     return json_data["result"]["output"]["value"]
                             except json.JSONDecodeError:
