@@ -15,7 +15,7 @@ from glif_client import GlifClient
 
 glif_api_token = "your super secret token here"
 # supply `api_token` or set it as an environment variable named GLIF_API_TOKEN
-glif_api = GlifClient(api_token=glif_api_token, verbose=True)
+glif_api = GlifClient(api_token=glif_api_token)
 
 # option 1, positional args
 simple_args = ["a happy horse", "living on a farm", "in France"]

@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 
 import logging
 
+
 class URLPath:
     """
     Example usage
@@ -48,7 +49,6 @@ class GlifClient:
     @property
     def headers(self) -> dict:
         return {"Authorization": f"Bearer {self.api_token}"}
-    
 
     def run_simple(self, glif_id: str, inputs: Optional[dict] = None) -> dict:
         if inputs is None:
